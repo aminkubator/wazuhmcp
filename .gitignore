@@ -1,0 +1,5 @@
+/wazuhmcp
+*.jsonl
+.env
+*.pem
+*.key
