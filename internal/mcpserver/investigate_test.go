@@ -1,6 +1,7 @@
 package mcpserver
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -145,5 +146,48 @@ func TestTimelinePagesOldestFirst(t *testing.T) {
 	}
 	if h.idx.lastBody["search_after"] == nil {
 		t.Error("cursor not sent as search_after")
+	}
+}
+
+// The filter fields are embedded from alertFilterArgs: the schema the client
+// sees must still list each one, and the timeline keeps its own window default.
+func TestEmbeddedFilterSchemas(t *testing.T) {
+	h := newHarness(t, policy.Config{Default: policy.ReadOnly})
+	res, err := h.sess.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	props := map[string]map[string]any{}
+	for _, tl := range res.Tools {
+		b, _ := json.Marshal(tl.InputSchema)
+		var s struct {
+			Properties map[string]any `json:"properties"`
+		}
+		json.Unmarshal(b, &s)
+		props[tl.Name] = s.Properties
+	}
+	for tool, extra := range map[string][]string{"alerts_search": {"limit"}, "alerts_timeline": {"limit", "cursor"}} {
+		for _, f := range append([]string{"from", "to", "window", "min_level", "agent_id", "group", "rule_id", "srcip", "mitre_id", "text"}, extra...) {
+			if props[tool][f] == nil {
+				t.Errorf("%s schema lacks %q: %v", tool, f, props[tool])
+			}
+		}
+	}
+	if d, _ := json.Marshal(props["alerts_timeline"]["window"]); !strings.Contains(string(d), "default 24h") {
+		t.Errorf("timeline window description = %s", d)
+	}
+	// The window a client sends must reach the query (shadowed field), and
+	// the embedded filters too.
+	for args, want := range map[string]map[string]any{
+		`"gte":"now-2h"`:   {"window": "2h"},
+		`"gte":"now-24h"`:  {},
+		`"rule.id":"5710"`: {"rule_id": "5710"},
+	} {
+		if _, res := h.call(t, "alerts_timeline", want); res.IsError {
+			t.Fatal(text(res))
+		}
+		if b, _ := json.Marshal(h.idx.lastBody); !strings.Contains(string(b), args) {
+			t.Errorf("timeline %v: query lacks %s: %s", want, args, b)
+		}
 	}
 }

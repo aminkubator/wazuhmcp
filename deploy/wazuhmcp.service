@@ -10,9 +10,11 @@ EnvironmentFile=/etc/wazuhmcp/wazuhmcp.env
 ExecStart=/usr/local/bin/wazuhmcp serve
 Restart=on-failure
 RestartSec=5
-# audit log: /var/lib/wazuhmcp/audit.jsonl
+# Audit log in the state directory. The default ($HOME/.local/state) would fail:
+# the system user has no home and ProtectHome/ProtectSystem make it unwritable.
 StateDirectory=wazuhmcp
 StateDirectoryMode=0700
+Environment=WAZUHMCP_AUDIT_FILE=/var/lib/wazuhmcp/audit.jsonl
 
 NoNewPrivileges=yes
 CapabilityBoundingSet=
