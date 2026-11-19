@@ -3,6 +3,8 @@ package mcpserver
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"net/url"
 	"sort"
 	"strings"
 	"testing"
@@ -22,7 +24,7 @@ import (
 type fakeManager struct{}
 
 func (fakeManager) ListAgents(context.Context, api.ListAgentsParams) ([]api.Agent, int, error) {
-	return []api.Agent{{ID: "001", Name: "web-1\x1b[31m", Status: "active"}}, 1, nil
+	return []api.Agent{{ID: "001", Name: "web-1\x1b[31m", IP: "10.0.0.5", Status: "active"}}, 1, nil
 }
 func (fakeManager) AgentsSummary(context.Context) (map[string]any, error) {
 	return map[string]any{"connection": map[string]any{"active": 3}}, nil
@@ -33,14 +35,42 @@ func (fakeManager) ManagerInfo(context.Context) (map[string]any, error) {
 func (fakeManager) AgentPackages(context.Context, string, string, int) ([]map[string]any, int, error) {
 	return nil, 0, nil
 }
+func (fakeManager) Syscollector(_ context.Context, _ string, kind string, _ url.Values, _ int) ([]map[string]any, int, error) {
+	switch kind {
+	case "processes":
+		return []map[string]any{
+			{"pid": "10", "name": "sshd", "cmd": "/usr/sbin/sshd"},
+			{"pid": "66", "name": "kworker", "cmd": "/tmp/.x/kworker"},
+			{"pid": "77", "name": "nc", "cmd": "/usr/bin/nc"},
+		}, 3, nil
+	case "ports":
+		return []map[string]any{
+			{"protocol": "tcp", "local": map[string]any{"ip": "0.0.0.0", "port": 4444.0}, "pid": "77", "process": " "},
+			{"protocol": "tcp", "local": map[string]any{"ip": "127.0.0.1", "port": 25.0}, "pid": "1", "process": ""},
+			{"protocol": "tcp", "local": map[string]any{"ip": "0.0.0.0", "port": 8081.0}, "pid": "0", "process": " "},
+		}, 2, nil
+	case "users":
+		return []map[string]any{
+			{"user": map[string]any{"name": "root", "id": 0.0, "shell": "/bin/bash"}},
+			{"user": map[string]any{"name": "toor", "id": 0.0, "shell": "/bin/bash"}},
+			{"user": map[string]any{"name": "_apt", "id": 100.0, "shell": "/usr/sbin/nologin"}},
+			// Wazuh stores the day of the change (00:00 UTC): today counts even for a 1h period.
+			{"user": map[string]any{"name": "deploy", "id": 1000.0, "shell": "/bin/bash",
+				"password_last_change": float64(time.Now().UTC().Truncate(24 * time.Hour).Unix())}},
+		}, 3, nil
+	}
+	return nil, 0, nil
+}
 
 type fakeIndexer struct {
 	lastBody map[string]any
+	bodies   []map[string]any // every search, in order
 	result   *indexer.Result
 }
 
 func (f *fakeIndexer) Search(_ context.Context, index string, body map[string]any) (*indexer.Result, error) {
 	f.lastBody = body
+	f.bodies = append(f.bodies, body)
 	if f.result != nil {
 		return f.result, nil
 	}
@@ -71,7 +101,19 @@ type harness struct {
 	exec *fakeExec
 }
 
+// failingAgents is a manager whose agent listing fails (API down, no permission).
+type failingAgents struct{ fakeManager }
+
+func (failingAgents) ListAgents(context.Context, api.ListAgentsParams) ([]api.Agent, int, error) {
+	return nil, 0, errors.New("HTTP 403")
+}
+
 func newHarness(t *testing.T, cfg policy.Config) *harness {
+	t.Helper()
+	return newHarnessWith(t, cfg, fakeManager{})
+}
+
+func newHarnessWith(t *testing.T, cfg policy.Config, mgr Manager) *harness {
 	t.Helper()
 	if cfg.AllowedTTLs == nil {
 		cfg.AllowedTTLs = response.DefaultCommands().TTLs()
@@ -83,7 +125,7 @@ func newHarness(t *testing.T, cfg policy.Config) *harness {
 	ex := &fakeExec{}
 	svc := response.New(pol, plans.NewStore(time.Hour), nil, ex, response.DefaultCommands(), nil)
 	idx := &fakeIndexer{}
-	srv := New(Deps{Manager: fakeManager{}, Indexer: idx, Response: svc}, "test")
+	srv := New(Deps{Manager: mgr, Indexer: idx, Response: svc}, "test")
 
 	ct, st := mcp.NewInMemoryTransports()
 	ctx := context.Background()
@@ -149,7 +191,8 @@ func has(names []string, want string) bool {
 // ---- tests -----------------------------------------------------------------
 
 var readTools = []string{"health", "agents_list", "agent_packages", "alerts_search", "alerts_summary", "alert_get",
-	"vulns_search", "vulns_summary", "mitigation_options", "autonomy_status"}
+	"vulns_search", "vulns_summary", "mitigation_options", "autonomy_status",
+	"alerts_timeline", "attacker_profile", "host_triage"}
 
 func TestToolsRegisteredPerAutonomyLevel(t *testing.T) {
 	cases := []struct {

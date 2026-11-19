@@ -61,6 +61,7 @@ func New(o Options) (*Client, error) {
 type Hit struct {
 	ID     string         `json:"id"`
 	Source map[string]any `json:"source"`
+	Sort   []any          `json:"-"` // sort values, for search_after paging
 }
 
 // Result is a parsed _search answer.
@@ -109,6 +110,7 @@ func parseResult(raw []byte) (*Result, error) {
 			Hits []struct {
 				ID     string         `json:"_id"`
 				Source map[string]any `json:"_source"`
+				Sort   []any          `json:"sort"`
 			} `json:"hits"`
 		} `json:"hits"`
 		Aggregations map[string]any `json:"aggregations"`
@@ -118,7 +120,7 @@ func parseResult(raw []byte) (*Result, error) {
 	}
 	res := &Result{Total: env.Hits.Total.Value, Aggregations: env.Aggregations}
 	for _, h := range env.Hits.Hits {
-		res.Hits = append(res.Hits, Hit{ID: h.ID, Source: h.Source})
+		res.Hits = append(res.Hits, Hit{ID: h.ID, Source: h.Source, Sort: h.Sort})
 	}
 	return res, nil
 }

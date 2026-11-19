@@ -5,6 +5,7 @@ package app
 import (
 	"context"
 	"crypto/rand"
+	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -123,8 +124,16 @@ func (s *Server) Start() error {
 	if err != nil {
 		return err
 	}
+	if s.cfg.TLSCert != "" {
+		cert, err := tls.LoadX509KeyPair(s.cfg.TLSCert, s.cfg.TLSKey)
+		if err != nil {
+			ln.Close()
+			return fmt.Errorf("load TLS certificate: %w", err)
+		}
+		ln = tls.NewListener(ln, &tls.Config{Certificates: []tls.Certificate{cert}, MinVersion: tls.VersionTLS12})
+	}
 	s.ln = ln
-	if host, _, _ := net.SplitHostPort(s.cfg.Addr); !isLoopback(host) {
+	if host, _, _ := net.SplitHostPort(s.cfg.Addr); !isLoopback(host) && s.cfg.TLSCert == "" {
 		s.log.Warn("listening on a non-loopback address; tokens travel in plain HTTP, put a TLS reverse proxy in front", "addr", s.cfg.Addr)
 	}
 	ctx, cancel := context.WithCancel(context.Background())

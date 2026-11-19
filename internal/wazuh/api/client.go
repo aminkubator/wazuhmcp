@@ -278,16 +278,17 @@ func (c *Client) AgentsSummary(ctx context.Context) (map[string]any, error) {
 	return out.Data, nil
 }
 
-// ManagerInfo returns the manager version and basics (GET /manager/info).
+// ManagerInfo returns the API version and manager host name (GET /).
+// The API root needs no RBAC permission; /manager/info would need manager:read,
+// which also exposes the whole ossec.conf (integration secrets) via /manager/configuration.
 func (c *Client) ManagerInfo(ctx context.Context) (map[string]any, error) {
-	var out Items[map[string]any]
-	if err := c.Do(ctx, http.MethodGet, "/manager/info", nil, nil, &out); err != nil {
+	var out struct {
+		Data map[string]any `json:"data"`
+	}
+	if err := c.Do(ctx, http.MethodGet, "/", nil, nil, &out); err != nil {
 		return nil, err
 	}
-	if len(out.Data.AffectedItems) == 0 {
-		return map[string]any{}, nil
-	}
-	return out.Data.AffectedItems[0], nil
+	return out.Data, nil
 }
 
 // AgentPackages lists installed packages of an agent (syscollector).
@@ -302,6 +303,29 @@ func (c *Client) AgentPackages(ctx context.Context, agentID, search string, limi
 	q.Set("limit", fmt.Sprint(limit))
 	var out Items[map[string]any]
 	if err := c.Do(ctx, http.MethodGet, "/syscollector/"+url.PathEscape(agentID)+"/packages", q, nil, &out); err != nil {
+		return nil, 0, err
+	}
+	return out.Data.AffectedItems, out.Data.TotalAffectedItems, nil
+}
+
+// Inventory kinds that Syscollector may read (all need only syscollector:read).
+var inventoryKinds = map[string]bool{"processes": true, "ports": true, "users": true}
+
+// Syscollector reads one inventory list of an agent (GET /syscollector/{id}/{kind}).
+// q carries Wazuh filters such as state=listening.
+func (c *Client) Syscollector(ctx context.Context, agentID, kind string, q url.Values, limit int) ([]map[string]any, int, error) {
+	if !inventoryKinds[kind] {
+		return nil, 0, fmt.Errorf("inventory %q is not allowed", kind)
+	}
+	if q == nil {
+		q = url.Values{}
+	}
+	if limit <= 0 || limit > 500 {
+		limit = 500
+	}
+	q.Set("limit", fmt.Sprint(limit))
+	var out Items[map[string]any]
+	if err := c.Do(ctx, http.MethodGet, "/syscollector/"+url.PathEscape(agentID)+"/"+kind, q, nil, &out); err != nil {
 		return nil, 0, err
 	}
 	return out.Data.AffectedItems, out.Data.TotalAffectedItems, nil

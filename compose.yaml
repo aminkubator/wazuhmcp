@@ -1,0 +1,23 @@
+# Deploy:  cp .env.example .env  (fill it in, chmod 600)  &&  docker compose up -d --build
+services:
+  wazuhmcp:
+    build: .
+    image: wazuhmcp:latest
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      # 127.0.0.1 only; change to the address your MCP client reaches. Never expose to the internet without a TLS proxy.
+      - "127.0.0.1:8090:8090"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # reach a Wazuh running on the same server
+    volumes:
+      - ./certs/root-ca.pem:/certs/root-ca.pem:ro
+      - wazuhmcp-data:/data                   # audit log
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: ["CMD", "/wazuhmcp", "version"]   # distroless has no curl; real check: curl host:8090/healthz
+      interval: 1m
+volumes:
+  wazuhmcp-data:

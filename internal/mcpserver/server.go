@@ -3,7 +3,9 @@
 // Layout: this file builds the server and decides which tools exist. Tools are
 // grouped per domain in tools_<domain>.go.
 //
-//   - always on, read-only: health, agents, alerts, vulnerabilities, mitigation_options
+//   - always on, read-only: health, agents, alerts, vulnerabilities, mitigation_options,
+//     investigation (alerts_timeline, attacker_profile, host_triage)
+//   - prompt: investigate_incident (the investigation workflow as a ready-made request)
 //   - autonomy >= propose:  response_propose, response_plans, blocks_list
 //   - autonomy >= approve:  response_execute
 //
@@ -14,6 +16,7 @@ package mcpserver
 import (
 	"context"
 	"log/slog"
+	"net/url"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -42,6 +45,7 @@ Typical workflow:
    clear reason. A plan is what a human approves or what you execute, depending
    on the autonomy level. Follow the next_step text of each answer.
 
+` + investigationSteps + `
 Prefer narrow time windows and small limits; results are capped.`
 
 // Manager is the read side of the Wazuh server API used by the tools.
@@ -50,6 +54,7 @@ type Manager interface {
 	AgentsSummary(ctx context.Context) (map[string]any, error)
 	ManagerInfo(ctx context.Context) (map[string]any, error)
 	AgentPackages(ctx context.Context, agentID, search string, limit int) ([]map[string]any, int, error)
+	Syscollector(ctx context.Context, agentID, kind string, q url.Values, limit int) ([]map[string]any, int, error)
 }
 
 // Indexer is the read-only search side of the Wazuh Indexer.
@@ -76,6 +81,8 @@ func New(d Deps, version string) *mcp.Server {
 	addAgentTools(s, d)
 	addAlertTools(s, d)
 	addVulnTools(s, d)
+	addInvestigationTools(s, d)
+	addPrompts(s)
 	addMitigationTools(s, d)
 
 	pol := d.Response.Policy()

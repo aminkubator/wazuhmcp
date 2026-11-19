@@ -1,0 +1,34 @@
+[Unit]
+Description=WazuhMCP - MCP server for Wazuh
+After=network-online.target wazuh-manager.service wazuh-indexer.service
+Wants=network-online.target
+
+[Service]
+User=wazuhmcp
+Group=wazuhmcp
+EnvironmentFile=/etc/wazuhmcp/wazuhmcp.env
+ExecStart=/usr/local/bin/wazuhmcp serve
+Restart=on-failure
+RestartSec=5
+# audit log: /var/lib/wazuhmcp/audit.jsonl
+StateDirectory=wazuhmcp
+StateDirectoryMode=0700
+
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+MemoryMax=256M
+
+[Install]
+WantedBy=multi-user.target

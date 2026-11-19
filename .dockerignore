@@ -1,0 +1,7 @@
+.git
+wazuhmcp
+*.jsonl
+.env
+*.pem
+*.key
+dist

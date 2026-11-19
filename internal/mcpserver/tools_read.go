@@ -120,6 +120,8 @@ func addAgentTools(s *mcp.Server, d Deps) {
 // ---------------------------------------------------------------------------
 
 type alertFilterArgs struct {
+	From     string `json:"from,omitempty" jsonschema:"absolute start instead of window: 2026-11-01 or 2026-11-01T08:00:00Z (can go beyond 30 days)"`
+	To       string `json:"to,omitempty" jsonschema:"absolute end (default now); needs from"`
 	Window   string `json:"window,omitempty" jsonschema:"how far back to look: 15m, 6h, 7d (default 1h, max 30d)"`
 	MinLevel int    `json:"min_level,omitempty" jsonschema:"only alerts with rule level >= this (1-15). 10+ is serious, 12+ is critical"`
 	AgentID  string `json:"agent_id,omitempty" jsonschema:"agent id such as 001"`
@@ -131,6 +133,8 @@ type alertFilterArgs struct {
 }
 
 type alertsSearchArgs struct {
+	From     string `json:"from,omitempty" jsonschema:"absolute start instead of window: 2026-11-01 or 2026-11-01T08:00:00Z (can go beyond 30 days)"`
+	To       string `json:"to,omitempty" jsonschema:"absolute end (default now); needs from"`
 	Window   string `json:"window,omitempty" jsonschema:"how far back to look: 15m, 6h, 7d (default 1h, max 30d)"`
 	MinLevel int    `json:"min_level,omitempty" jsonschema:"only alerts with rule level >= this (1-15). 10+ is serious, 12+ is critical"`
 	AgentID  string `json:"agent_id,omitempty" jsonschema:"agent id such as 001"`
@@ -155,7 +159,7 @@ type alertsSearchOut struct {
 
 func (a alertFilterArgs) filter(limit int) indexer.AlertFilter {
 	return indexer.AlertFilter{
-		Window: a.Window, MinLevel: a.MinLevel, AgentID: a.AgentID, Group: a.Group,
+		Window: a.Window, From: a.From, To: a.To, MinLevel: a.MinLevel, AgentID: a.AgentID, Group: a.Group,
 		RuleID: a.RuleID, SrcIP: a.SrcIP, MitreID: a.MitreID, Text: a.Text, Limit: limit,
 	}
 }
@@ -188,7 +192,7 @@ func addAlertTools(s *mcp.Server, d Deps) {
 		Annotations: readOnly(),
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, a alertsSearchArgs) (*mcp.CallToolResult, alertsSearchOut, error) {
 		q, err := indexer.AlertsQuery(alertFilterArgs{
-			Window: a.Window, MinLevel: a.MinLevel, AgentID: a.AgentID, Group: a.Group,
+			Window: a.Window, From: a.From, To: a.To, MinLevel: a.MinLevel, AgentID: a.AgentID, Group: a.Group,
 			RuleID: a.RuleID, SrcIP: a.SrcIP, MitreID: a.MitreID, Text: a.Text,
 		}.filter(a.Limit))
 		if err != nil {

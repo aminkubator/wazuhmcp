@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestParseWindow(t *testing.T) {
@@ -106,7 +107,7 @@ func TestSearchParsesAnswer(t *testing.T) {
 		if !strings.Contains(string(body), `"size":0`) {
 			t.Errorf("body = %s", body)
 		}
-		io.WriteString(w, `{"hits":{"total":{"value":42},"hits":[{"_id":"a1","_source":{"rule":{"id":"5710"}}}]},"aggregations":{"top_rules":{"buckets":[]}}}`)
+		io.WriteString(w, `{"hits":{"total":{"value":42},"hits":[{"_id":"a1","_source":{"rule":{"id":"5710"}},"sort":[1794992299000,"1794992299.123"]}]},"aggregations":{"top_rules":{"buckets":[]}}}`)
 	}))
 	defer srv.Close()
 	c, err := New(Options{BaseURL: srv.URL, User: "u", Password: "p"})
@@ -119,5 +120,84 @@ func TestSearchParsesAnswer(t *testing.T) {
 	}
 	if res.Total != 42 || len(res.Hits) != 1 || res.Hits[0].ID != "a1" || res.Aggregations["top_rules"] == nil {
 		t.Fatalf("parsed = %+v", res)
+	}
+	// The sort values of the last hit become a cursor that the next page accepts as-is.
+	after, err := DecodeCursor(EncodeCursor(res.Hits[0].Sort))
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := json.Marshal(after)
+	if string(b) != `[1794992299000,"1794992299.123"]` {
+		t.Fatalf("cursor round trip = %s", b)
+	}
+}
+
+func TestAbsoluteTimeRange(t *testing.T) {
+	q, err := AlertsQuery(AlertFilter{From: "2026-08-01", To: "2026-11-01T08:00:00+07:00", Window: "1h"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := json.Marshal(q)
+	if !strings.Contains(string(b), `"gte":"2026-08-01T00:00:00Z","lte":"2026-11-01T01:00:00Z"`) {
+		t.Fatalf("range not absolute UTC: %s", b)
+	}
+	for _, f := range []AlertFilter{
+		{To: "2026-11-01"},                     // to without from
+		{From: "2026-11-02", To: "2026-11-01"}, // reversed
+		{From: "yesterday"},
+		{From: "2026-11-01T08:00:00Z;x"},
+	} {
+		if _, err := AlertsQuery(f); err == nil {
+			t.Errorf("%+v should fail", f)
+		}
+	}
+	start, err := AlertFilter{Window: "7d"}.Start(time.Unix(1_000_000, 0))
+	if err != nil || start.Unix() != 1_000_000-7*86400 {
+		t.Errorf("Start = %v, %v", start, err)
+	}
+}
+
+func TestTimelineQuery(t *testing.T) {
+	q, err := TimelineQuery(AlertFilter{Window: "1d", Limit: 5000}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := json.Marshal(q)
+	if q["size"] != TimelineMax || !strings.Contains(string(b), `{"@timestamp":"asc"}`) || q["search_after"] != nil {
+		t.Fatalf("timeline query = %s", b)
+	}
+	cur := EncodeCursor([]any{float64(1794992299000), "1794992299.1"})
+	q, err = TimelineQuery(AlertFilter{Window: "1d"}, cur)
+	if err != nil || q["search_after"] == nil {
+		t.Fatalf("cursor not applied: %v", err)
+	}
+	for _, bad := range []string{"x", EncodeCursor([]any{"a", "b"}), EncodeCursor([]any{float64(1), "id;drop"}), strings.Repeat("A", 300)} {
+		if _, err := TimelineQuery(AlertFilter{Window: "1d"}, bad); err == nil {
+			t.Errorf("cursor %q should be refused", bad)
+		}
+	}
+}
+
+func TestInvestigationQueriesNeedTheirKey(t *testing.T) {
+	if _, err := AttackerProfileQuery(AlertFilter{Window: "1d"}); err == nil {
+		t.Error("profile without srcip must fail")
+	}
+	if _, err := HostActivityQuery(AlertFilter{Window: "1d"}); err == nil {
+		t.Error("host activity without agent must fail")
+	}
+	hq, _ := HostActivityQuery(AlertFilter{AgentID: "001", Window: "1d"})
+	if hb, _ := json.Marshal(hq); !strings.Contains(string(hb), `"rule.id":"40112"`) {
+		t.Error("host logins must include rule 40112 (success after brute force)")
+	}
+	if _, err := AttackerProfileQuery(AlertFilter{SrcIP: "10.0.0.5", ExcludeAgentID: "../x"}); err == nil {
+		t.Error("bad exclude agent id must fail")
+	}
+	q, err := AttackerProfileQuery(AlertFilter{SrcIP: "10.0.0.5", Window: "30d"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := json.Marshal(q)
+	if !strings.Contains(string(b), `"data.srcip":"10.0.0.5"`) || !strings.Contains(string(b), "authentication_success") || !strings.Contains(string(b), `"rule.id":"40112"`) {
+		t.Fatalf("profile query = %s", b)
 	}
 }

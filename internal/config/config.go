@@ -21,6 +21,8 @@ import (
 // Config is the full server configuration.
 type Config struct {
 	Addr       string
+	TLSCert    string // serve HTTPS when set (with TLSKey)
+	TLSKey     string
 	Token      string // MCP clients
 	AdminToken string // humans: approve / reject / execute plans
 
@@ -62,6 +64,8 @@ Usage:
 
 Connection (secrets: prefer the environment variables):
   -addr                 listen address (default 127.0.0.1:8090)          WAZUHMCP_ADDR
+  -tls-cert, -tls-key   serve HTTPS with this PEM certificate and key
+                        (needed when -addr is not loopback)    WAZUHMCP_TLS_CERT / WAZUHMCP_TLS_KEY
   -token                token for MCP clients; generated when empty       WAZUHMCP_TOKEN
   -admin-token          token for the admin API (approve/execute plans);
                         generated when empty. Must differ from -token.    WAZUHMCP_ADMIN_TOKEN
@@ -122,6 +126,8 @@ func Parse(args []string, env func(string) string, errOut io.Writer) (*Config, e
 	fs := flag.NewFlagSet("wazuhmcp serve", flag.ContinueOnError)
 	fs.SetOutput(errOut)
 	fs.StringVar(&c.Addr, "addr", e("WAZUHMCP_ADDR", "127.0.0.1:8090"), "")
+	fs.StringVar(&c.TLSCert, "tls-cert", e("WAZUHMCP_TLS_CERT", ""), "")
+	fs.StringVar(&c.TLSKey, "tls-key", e("WAZUHMCP_TLS_KEY", ""), "")
 	fs.StringVar(&c.Token, "token", e("WAZUHMCP_TOKEN", ""), "")
 	fs.StringVar(&c.AdminToken, "admin-token", e("WAZUHMCP_ADMIN_TOKEN", ""), "")
 	fs.StringVar(&c.APIURL, "api-url", e("WAZUHMCP_API_URL", "https://localhost:55000"), "")
@@ -173,6 +179,9 @@ func (c *Config) validate() error {
 	}
 	if c.IndexerUser == "" || c.IndexerPassword == "" {
 		return errors.New("Wazuh Indexer credentials missing: set WAZUHMCP_INDEXER_USER (or -indexer-user) and WAZUHMCP_INDEXER_PASSWORD")
+	}
+	if (c.TLSCert == "") != (c.TLSKey == "") {
+		return errors.New("-tls-cert and -tls-key must be set together")
 	}
 	if c.Token != "" && c.Token == c.AdminToken {
 		return errors.New("-token and -admin-token must be different: the AI must not hold the admin credential")

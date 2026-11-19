@@ -76,8 +76,12 @@ func serve(args []string) error {
 func banner(s *app.Server, cfg *config.Config) {
 	e := os.Stderr
 	fmt.Fprintf(e, "\nWazuhMCP %s\n", version)
-	fmt.Fprintf(e, "  MCP:        http://%s/mcp\n", s.Addr())
-	fmt.Fprintf(e, "  admin API:  http://%s/admin/plans\n", s.Addr())
+	scheme := "http"
+	if cfg.TLSCert != "" {
+		scheme = "https"
+	}
+	fmt.Fprintf(e, "  MCP:        %s://%s/mcp\n", scheme, s.Addr())
+	fmt.Fprintf(e, "  admin API:  %s://%s/admin/plans\n", scheme, s.Addr())
 	fmt.Fprintf(e, "  autonomy:   %s", cfg.Autonomy)
 	for a, l := range cfg.AutonomyActions {
 		fmt.Fprintf(e, "  %s=%s", a, l)
