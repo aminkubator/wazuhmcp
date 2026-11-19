@@ -121,6 +121,10 @@ rate limit per aksi per jam, validasi IP/ID/TTL, plan kedaluwarsa (default 30
 menit) dan hanya jalan satu kali, serta audit log yang harus berhasil ditulis
 sebelum aksi dikirim. Detail: [docs/autonomy.md](docs/autonomy.md).
 
+Ringkasan akses untuk produksi (siapa boleh memanggil apa, izin akun Wazuh,
+endpoint yang dipanggil tiap tool, cara menghubungkan Hermes):
+[docs/akses-dan-kewenangan.md](docs/akses-dan-kewenangan.md).
+
 ## Quick start
 
 ```sh
@@ -166,8 +170,8 @@ Password hanya dari environment (`WAZUHMCP_API_PASSWORD`,
 `WAZUHMCP_INDEXER_PASSWORD`).
 
 Saran akun: jangan pakai `admin` atau `wazuh-wui`. Buat user `wazuhmcp`
-least-privilege. Skrip pembuatnya ada di repo Ansible
-(`docker/files/wazuhmcp/create-wazuhmcp-users.sh`, dijalankan di server Wazuh):
+least-privilege. Skrip pembuatnya: `deploy/create-wazuhmcp-users.sh` (dijalankan di
+server Wazuh, ikut di paket `make dist`):
 
 | Akun | Izin | Untuk |
 |---|---|---|

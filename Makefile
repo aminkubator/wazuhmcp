@@ -14,7 +14,8 @@ DIST := wazuhmcp-$(VERSION)-linux-amd64
 dist:
 	rm -rf dist/$(DIST) && mkdir -p dist/$(DIST)
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=$(VERSION)" -o dist/$(DIST)/wazuhmcp .
-	cp deploy/wazuhmcp.service deploy/wazuhmcp.env.example deploy/INSTALL.md dist/$(DIST)/
+	cp deploy/wazuhmcp.service deploy/wazuhmcp.env.example deploy/INSTALL.md \
+	   deploy/create-wazuhmcp-users.sh docs/akses-dan-kewenangan.md dist/$(DIST)/
 	tar -C dist -czf dist/$(DIST).tar.gz $(DIST)
 	@echo dist/$(DIST).tar.gz
 
