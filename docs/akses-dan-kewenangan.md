@@ -1,13 +1,13 @@
 # WazuhMCP: tools, kewenangan, dan akses agent
 
-Per 19 November 2026, paket `wazuhmcp-0420e01`.
+Per 19 November 2026. Versi yang terpasang: `wazuhmcp version`.
 
 ## Ringkasan
 
 WazuhMCP adalah server MCP (Model Context Protocol) yang memberi agent AI akses baca ke Wazuh 4.14 dan jalur respons yang dikendalikan manusia. Di produksi, satu-satunya agent AI yang terhubung adalah **Hermes** di server02.
 
 - **Lokasi:** server Wazuh produksi 163.7.16.251, dipasang sebagai service systemd (user sistem `wazuhmcp`, tanpa root).
-- **Paket:** `wazuhmcp-0420e01-linux-amd64.tar.gz` (commit `0420e01`).
+- **Paket:** `wazuhmcp-<versi>-linux-amd64.tar.gz` dari `make dist`; `<versi>` adalah commit git yang dibangun.
 - **Masuk:** HTTPS port 8090, hanya dari server02 (182.253.222.86).
 - **Keluar:** Wazuh Manager API (port 55000) dan Wazuh Indexer (port 9200), keduanya lewat `127.0.0.1` di host yang sama.
 - **Batas kewenangan:** AI hanya bisa membaca data dan mengusulkan aksi. Aksi yang mengubah sistem (blokir IP, restart agent, scan FIM) hanya berjalan setelah disetujui manusia.
