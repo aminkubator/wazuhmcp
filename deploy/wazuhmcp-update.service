@@ -1,0 +1,14 @@
+[Unit]
+Description=Install the latest signed WazuhMCP release
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/wazuhmcp-update
+# Root (it replaces the binary and restarts wazuhmcp), but may only write there.
+ProtectSystem=strict
+ReadWritePaths=/usr/local/bin
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes

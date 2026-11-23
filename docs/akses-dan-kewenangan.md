@@ -65,6 +65,7 @@ WazuhMCP menyediakan 17 tool dan 1 prompt. Dari semuanya, hanya `response_execut
 | `alerts_timeline` | Alert urut dari yang terlama, berhalaman | Indexer `wazuh-alerts-4.x-*` | Baca | readonly |
 | `attacker_profile` | Semua yang dilakukan satu IP sumber, termasuk login berhasil dan pergerakan lateral | Indexer `wazuh-alerts-4.x-*`; API `GET /agents` | Baca | readonly |
 | `host_triage` | Tanda host disusupi: proses, port, akun, login, file persistensi, CVE | API `GET /agents`, `GET /syscollector/{id}/processes`, `/ports`, `/users`; Indexer alert dan kerentanan | Baca | readonly |
+| `ssh_key_usage` | Login SSH per kunci, IP sumber, agent, user; tandai pasangan baru dibanding baseline | Indexer `wazuh-alerts-4.x-*` | Baca | readonly |
 | `vulns_summary` | Kerentanan per severity, agent, paket, CVE | Indexer `wazuh-states-vulnerabilities-*` | Baca | readonly |
 | `vulns_search` | Daftar temuan kerentanan, CVSS tertinggi dulu | Indexer `wazuh-states-vulnerabilities-*` | Baca | readonly |
 | `mitigation_options` | Opsi mitigasi untuk satu alert atau CVE | Indexer alert atau kerentanan | Baca | readonly |

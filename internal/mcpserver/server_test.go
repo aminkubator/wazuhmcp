@@ -192,7 +192,7 @@ func has(names []string, want string) bool {
 
 var readTools = []string{"health", "agents_list", "agent_packages", "alerts_search", "alerts_summary", "alert_get",
 	"vulns_search", "vulns_summary", "mitigation_options", "autonomy_status",
-	"alerts_timeline", "attacker_profile", "host_triage"}
+	"alerts_timeline", "attacker_profile", "host_triage", "ssh_key_usage"}
 
 func TestToolsRegisteredPerAutonomyLevel(t *testing.T) {
 	cases := []struct {

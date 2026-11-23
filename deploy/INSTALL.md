@@ -5,6 +5,7 @@ service systemd dengan user sistem `wazuhmcp` tanpa hak root, membaca Wazuh lewa
 `127.0.0.1`, dan melayani klien AI di server02 (182.253.222.86) lewat HTTPS port 8090.
 
 Isi paket: `wazuhmcp` (binary linux/amd64), `wazuhmcp.service`, `wazuhmcp.env.example`,
+`wazuhmcp-update` + unit `.service`/`.timer` + `allowed_signers` (pembaruan bertanda tangan),
 `create-wazuhmcp-users.sh` (akun Wazuh least-privilege), `INSTALL.md`, dan
 `akses-dan-kewenangan.md` (tool, izin, dan siapa yang boleh mengakses).
 
@@ -116,11 +117,49 @@ lalu `sudo systemctl restart wazuh-manager`:
 `rules_id` 999999 tidak ada, jadi blok ini tidak terpicu otomatis; ia hanya mendaftarkan
 command `firewall-drop300` dan `firewall-drop3600`. Wazuh melepas blokir sendiri setelah waktunya habis.
 
-## Pembaruan dan pencopotan
+## Pembaruan
+
+`wazuhmcp-update` memasang rilis terbaru yang **bertanda tangan**. Yang diganti hanya
+binary; unit, env, sertifikat dan akun Wazuh tetap manual. Rilis ditolak bila tanda
+tangannya tidak cocok atau versinya lebih tua dari yang terpasang. Bila service gagal
+hidup setelah update, binary lama dipulihkan otomatis.
+
+Pasang sekali (dari folder paket):
 
 ```bash
-# update: ganti binary lalu restart
-sudo install -m 0755 wazuhmcp /usr/local/bin/wazuhmcp && sudo systemctl restart wazuhmcp
+sudo install -m 0755 wazuhmcp-update /usr/local/sbin/wazuhmcp-update
+sudo install -m 0644 allowed_signers /etc/wazuhmcp/allowed_signers
+sudo install -m 0644 wazuhmcp-update.service wazuhmcp-update.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+cat /etc/wazuhmcp/allowed_signers
+```
+
+Cocokkan public key yang tampil dengan yang dikirim pengembang lewat jalur lain (chat atau
+telepon). Kunci inilah satu-satunya yang boleh menerbitkan update.
+
+**Semi-otomatis (awal):** jalankan saat pengembang mengabari ada rilis baru:
+
+```bash
+sudo wazuhmcp-update
+sudo wazuhmcp-update --from-dir /path/folder   # tanpa akses GitHub: folder berisi .tar.gz dan .tar.gz.sig
+```
+
+**Otomatis (bila sudah percaya):** cek setiap hari sekitar pukul 03:00, log ada di journal:
+
+```bash
+sudo systemctl enable --now wazuhmcp-update.timer
+journalctl -u wazuhmcp-update -n 20
+sudo systemctl disable --now wazuhmcp-update.timer   # mematikan lagi
+```
+
+Unduhan dari `https://github.com/aminkubator/wazuhmcp/releases`: server butuh akses keluar
+HTTPS ke github.com (dan objects.githubusercontent.com).
+
+## Pencopotan
+
+```bash
+sudo systemctl disable --now wazuhmcp-update.timer 2>/dev/null
+sudo rm -f /etc/systemd/system/wazuhmcp-update.* /usr/local/sbin/wazuhmcp-update /usr/local/bin/wazuhmcp.prev
 # copot
 sudo systemctl disable --now wazuhmcp
 sudo rm /etc/systemd/system/wazuhmcp.service /usr/local/bin/wazuhmcp

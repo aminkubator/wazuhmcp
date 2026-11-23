@@ -28,6 +28,7 @@ Manager API, jadi server memakai dua client dengan kredensial terpisah.
 | `alerts_timeline` | alert urut **terlama dulu**, rentang `from`/`to` absolut (bisa >30 hari), paging `next_cursor` |
 | `attacker_profile` | satu IP sumber: kapan pertama/terakhir, agent yang disentuh, teknik MITRE berurutan, user, **login berhasil**, apakah IP itu agent kita sendiri (pivot) |
 | `host_triage` | satu agent: proses mencurigakan, port terbuka, akun (uid 0 ganda, ganti password), login dan asalnya, perubahan file di lokasi persistensi, serangan **dari** host ini, kerentanan |
+| `ssh_key_usage` | peta login SSH per kunci (fingerprint) → IP sumber → agent → user; menandai pasangan yang muncul di periode terbaru tapi **tidak pernah** di baseline. Untuk kasus private key bocor yang dipakai bersama banyak server |
 | `autonomy_status` | apa yang boleh dilakukan AI untuk tiap aksi |
 
 **Prompt MCP:** `investigate_incident`, yaitu permintaan investigasi siap pakai
@@ -57,6 +58,8 @@ tertulis di instruksi server, jadi klien AI mengikutinya sendiri:
 3. `host_triage` untuk tiap host yang berhasil dimasuki atau muncul sebagai
    sumber. Jalankan `scan_fim` **sebelum** `restart_agent`, karena restart bisa
    menghilangkan jejak perubahan file.
+   Bila ada dugaan private key SSH bocor, jalankan `ssh_key_usage` (dengan
+   `fingerprint` kunci itu) untuk melihat sumber/tujuan yang baru muncul.
 4. `alerts_timeline` dengan filter `srcip` atau `agent_id`, mulai dari
    `first_seen` paling awal, untuk urutan kejadian.
 5. `mitigation_options` dan `response_propose` untuk langkah mitigasi.
@@ -93,6 +96,13 @@ Hasilnya hanya sebaik data yang dikumpulkan Wazuh: lihat batasannya di
 lengkapi sumber data di sisi Wazuh: log firewall/IDS, auditd atau who-data di
 server data, `logall_json` (indeks archives), dan masa simpan Indexer yang
 cukup panjang.
+
+`ssh_key_usage` butuh agent membaca log sshd (`/var/log/auth.log` atau
+`/var/log/secure`; agent bawaan tidak selalu memantaunya) dan OpenSSH 6.8+
+agar fingerprint SHA256 tercatat. Fingerprint diambil dari `full_log`, jadi
+satu panggilan memindai paling banyak 10.000 login terbaru (`truncated: true`
+bila terpotong). Penyerang yang memakai kunci dari host yang memang biasa
+memakainya **tidak** tertandai; periksa perilakunya dengan `host_triage`.
 
 ## Level otonomi
 
@@ -277,9 +287,24 @@ containment (isolasi host).
 ## Pengembangan
 
 ```sh
-make test       # go test -race ./...
+make test       # go test -race ./... + scripts/test-update.sh
 make build
 ```
+
+**Rilis untuk `wazuhmcp-update`** (server produksi memperbarui diri dari GitHub
+Releases, lihat `deploy/INSTALL.md`):
+
+```sh
+# sekali: kunci penanda tangan, sebaiknya di hardware key (-t ed25519-sk) atau ber-passphrase
+ssh-keygen -t ed25519 -f ~/.ssh/wazuhmcp-release -C wazuhmcp-release
+echo "wazuhmcp-release namespaces=\"wazuhmcp-release\" $(cut -d' ' -f1,2 ~/.ssh/wazuhmcp-release.pub)" > deploy/allowed_signers
+# tiap rilis: commit, tag vX.Y.Z, lalu
+make release    # dist/wazuhmcp-linux-amd64.tar.gz + .sig: unggah keduanya ke rilis tag itu
+```
+
+Penanda tangan = siapa pun yang memegang `~/.ssh/wazuhmcp-release`: kunci ini
+setara akses ke semua agent Wazuh. Bila bocor, buat kunci baru dan minta pengelola
+mengganti `/etc/wazuhmcp/allowed_signers`.
 
 Struktur: `internal/policy` (level dan guardrail), `internal/plans`,
 `internal/response` (satu-satunya jalur eksekusi), `internal/audit`,

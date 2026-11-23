@@ -201,3 +201,23 @@ func TestInvestigationQueriesNeedTheirKey(t *testing.T) {
 		t.Fatalf("profile query = %s", b)
 	}
 }
+
+func TestSSHKeyLoginsQuery(t *testing.T) {
+	fp := "SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+	q, err := SSHKeyLoginsQuery(time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC), fp, []any{1.0, "x"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	js, _ := json.Marshal(q)
+	for _, want := range []string{`"gte":"2026-11-01T00:00:00Z"`, `"rule.id":"40112"`, `"full_log":"Accepted publickey"`,
+		`"full_log":"` + fp + `"`, `"search_after":[1,"x"]`, `"size":1000`} {
+		if !strings.Contains(string(js), want) {
+			t.Errorf("query lacks %s: %s", want, js)
+		}
+	}
+	for _, bad := range []string{"SHA256:short", "MD5:aa:bb", fp + `"`} {
+		if _, err := SSHKeyLoginsQuery(time.Now(), bad, nil); err == nil {
+			t.Errorf("fingerprint %q should be rejected", bad)
+		}
+	}
+}

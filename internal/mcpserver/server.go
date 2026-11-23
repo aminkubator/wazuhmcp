@@ -4,7 +4,7 @@
 // grouped per domain in tools_<domain>.go.
 //
 //   - always on, read-only: health, agents, alerts, vulnerabilities, mitigation_options,
-//     investigation (alerts_timeline, attacker_profile, host_triage)
+//     investigation (alerts_timeline, attacker_profile, host_triage, ssh_key_usage)
 //   - prompt: investigate_incident (the investigation workflow as a ready-made request)
 //   - autonomy >= propose:  response_propose, response_plans, blocks_list
 //   - autonomy >= approve:  response_execute
@@ -82,6 +82,7 @@ func New(d Deps, version string) *mcp.Server {
 	addAlertTools(s, d)
 	addVulnTools(s, d)
 	addInvestigationTools(s, d)
+	addSSHKeyTool(s, d)
 	addPrompts(s)
 	addMitigationTools(s, d)
 

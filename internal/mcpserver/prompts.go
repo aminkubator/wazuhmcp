@@ -27,7 +27,8 @@ const investigationSteps = `Investigating an intrusion (possibly old, possibly s
    as a source: processes, listening ports, accounts, file changes, attacks
    launched from it, vulnerabilities. On a suspected host, run scan_fim
    BEFORE restart_agent: a restart may rebuild the FIM baseline and hide
-   changes made before it.
+   changes made before it. If an SSH private key may have leaked, run
+   ssh_key_usage (with its fingerprint): new source/target pairs stand out.
 4. alerts_timeline (oldest first, from = earliest first_seen) filtered by
    srcip or agent to write the sequence of events; page with next_cursor.
 5. Report: sources, compromised hosts, what was done (with times), and

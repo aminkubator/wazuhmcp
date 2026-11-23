@@ -557,3 +557,40 @@ func HostActivityQuery(f AlertFilter) (map[string]any, error) {
 		},
 	}, nil
 }
+
+// SSHKeyPage is the page size of SSHKeyLoginsQuery; callers page with
+// search_after up to their own cap.
+const SSHKeyPage = 1000
+
+var fingerprintRe = regexp.MustCompile(`^SHA256:[A-Za-z0-9+/]{43}$`)
+
+// SSHKeyLoginsQuery returns successful SSH public-key logins since from,
+// newest first, with full_log (the fingerprint is only in the raw line).
+// fingerprint ("SHA256:...", optional) narrows to one key. after is the Sort
+// of the previous page's last hit (nil for the first page).
+func SSHKeyLoginsQuery(from time.Time, fingerprint string, after []any) (map[string]any, error) {
+	fl, err := AlertFilter{From: from.UTC().Format(time.RFC3339)}.filters()
+	if err != nil {
+		return nil, err
+	}
+	fl = append(fl, loginSuccess, map[string]any{"match_phrase": map[string]any{"full_log": "Accepted publickey"}})
+	if fingerprint != "" {
+		if !fingerprintRe.MatchString(fingerprint) {
+			return nil, fmt.Errorf("invalid fingerprint %q (use the SHA256:... form from ssh-keygen -lf)", fingerprint)
+		}
+		fl = append(fl, map[string]any{"match_phrase": map[string]any{"full_log": fingerprint}})
+	}
+	q := map[string]any{
+		"size": SSHKeyPage,
+		"sort": []any{
+			map[string]any{"@timestamp": "desc"},
+			map[string]any{"id": map[string]any{"order": "desc", "unmapped_type": "keyword"}},
+		},
+		"_source": []string{"@timestamp", "agent.id", "agent.name", "full_log"},
+		"query":   map[string]any{"bool": map[string]any{"filter": fl}},
+	}
+	if after != nil {
+		q["search_after"] = after
+	}
+	return q, nil
+}
